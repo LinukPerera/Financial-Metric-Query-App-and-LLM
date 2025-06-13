@@ -1,7 +1,7 @@
 # Finance-Data-Processing-LLM
 Finance Data Processing LLM
 
-Python Libraries: ollama, chromadb, sentence-transformers, langchain-community
+Python Libraries: ollama, chromadb, sentence-transformers, langchain-community, transformers, torch, pandas
 
 
 

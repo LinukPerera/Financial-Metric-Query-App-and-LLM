@@ -1,6 +1,5 @@
 import openpyxl
 from openpyxl.utils import get_column_letter
-import re
 
 def get_merged_parent(sheet, row, col):
     """Return the merged value and its full bounds if cell is in a merged range."""

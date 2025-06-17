@@ -166,7 +166,7 @@ def print_sheet_headers(sheet, multirow_enabled):
         print("\n📭 No sectors detected.")
 
 def main():
-    file_path = "financial_data.xlsx"  # Update to your Excel file path
+    file_path = "financial_data.xlsx" 
     wb = openpyxl.load_workbook(file_path, data_only=True)
 
     multirow_sheet = detect_multirow_sheet(wb)

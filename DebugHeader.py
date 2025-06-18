@@ -74,7 +74,19 @@ def detect_sectors(sheet, glossary_start=None):
         b_val = row[1].value if len(row) > 1 else None
         if isinstance(code, str) and len(code.strip()) > 4 and (b_val in (None, '')):
             sectors.append((row_num, code.strip()))
+
+    if sectors:
+        print("\n🏷️ Sector identifiers found:")
+        for row_num, code in sectors:
+            print(f"Row {row_num}: Sector Code = {code}")
+            # Print first 30 non-blank cells from that row
+            row_cells = [sheet.cell(row=row_num, column=col).value for col in range(1, 31)]
+            non_blank_cells = [str(cell).strip() for cell in row_cells if cell not in (None, '')]
+            if non_blank_cells:
+                print("  ➤ Row content (first 30 cells, non-blank):", ' | '.join(non_blank_cells))
     return sectors
+
+
 
 def detect_glossary(sheet, header_rows, repeating_header_rows, sector_rows):
     header_start_col = 1
@@ -142,28 +154,12 @@ def print_sheet_headers(sheet, multirow_enabled):
     else:
         print("\n✅ No repeating headers detected.")
 
-    # 3. Detect sectors
-    sectors = detect_sectors(sheet)
-    sector_rows = [r for r, _ in sectors]
-    # if sectors:
-    #     print("\n🏷️ Sector identifiers found:")
-    #     for row_num, code in sectors:
-    #         print(f"Row {row_num}: Sector Code = {code}")
-    # else:
-    #     print("\n📭 No sectors detected.")
-    
-    # 4. Detect glossary
+    # 3. Detect glossary
+    sector_rows = []
     glossary_start = detect_glossary(sheet, header_rows, repeating, sector_rows)
 
-    # 5. Re-run sector detection, now stopping at glossary
-    sectors = detect_sectors(sheet, glossary_start)
-    sector_rows = [r for r, _ in sectors]
-    if sectors:
-        print("\n🏷️ Sector identifiers found:")
-        for row_num, code in sectors:
-            print(f"Row {row_num}: Sector Code = {code}")
-    else:
-        print("\n📭 No sectors detected.")
+    # 4. Detect sectors only *after* glossary detection
+    detect_sectors(sheet, glossary_start)
 
 def main():
     file_path = "financial_data.xlsx" 

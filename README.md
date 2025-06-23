@@ -33,6 +33,7 @@ Best sector by ROE
 ---
 
 ## 🧩 Architecture
+```
 .
 ├── app.py                   # Streamlit UI & LLM integration
 ├── query_processor.py       # Core engine for structured query parsing and processing
@@ -41,6 +42,7 @@ Best sector by ROE
 ├── sample_data/
 │   └── Financials.xlsx      # Example Excel file
 └── README.md
+```
 
 ---
 

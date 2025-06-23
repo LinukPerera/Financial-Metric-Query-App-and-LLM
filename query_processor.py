@@ -14,6 +14,7 @@ from DebugHeader import (
     detect_glossary,
     get_merged_parent,
 )
+from metric_dictionary import metric_mappings, metric_definitions
 
 # Set up logging
 logging.basicConfig(filename='debug.log', level=logging.INFO, 
@@ -97,26 +98,65 @@ class FinancialQueryProcessor:
                     'primary_key_col': primary_key_col,
                 }
         return sheet_info
+    
+    def _normalize_metric(self, metric):
+        """Normalize metric name using metric_mappings."""
+        if not metric:
+            return metric
+        metric_clean = metric.lower().replace('.', '').replace('/', '').strip()
+        for raw_metric, mapped_metric in metric_mappings.items():
+            raw_clean = raw_metric.lower().replace('.', '').replace('/', '')
+            mapped_clean = mapped_metric.lower().replace('.', '').replace('/', '')
+            if metric_clean == raw_clean or metric_clean == mapped_clean:
+                return mapped_metric
+        return metric
+
+    # def _find_column_across_sheets(self, keyword):
+    #     """Find columns matching a keyword across all sheets, handling subheadings."""
+    #     results = []
+    #     keyword = keyword.lower().replace('.', '').strip()
+    #     for sheet_name in self.sheet_info:
+    #         headers = self.sheet_info[sheet_name]['headers']
+    #         pe_columns = []  # Track P/E columns for this sheet
+    #         for col, header in headers.items():
+    #             if header:
+    #                 # Split header at '>' to isolate main metric
+    #                 main_metric = header.split(' > ')[0].lower().replace('.', '').strip() if ' > ' in header else header.lower().replace('.', '').strip()
+    #                 if keyword == main_metric:
+    #                     if keyword == 'p/e':
+    #                         pe_columns.append((sheet_name, col, header))
+    #                     else:
+    #                         results.append((sheet_name, col, header))
+    #         # For P/E, select only the earliest column
+    #         if pe_columns:
+    #             earliest_pe = min(pe_columns, key=lambda x: openpyxl.utils.column_index_from_string(x[1]))
+    #             results.append(earliest_pe)
+    #     logging.debug(f"Finding '{keyword}' across sheets: {results}")
+    #     return results
 
     def _find_column_across_sheets(self, keyword):
-        """Find columns matching a keyword across all sheets, case-insensitive."""
+        """Find columns matching a keyword across all sheets, handling subheadings."""
         results = []
-        keyword = keyword.lower().replace('.', '').strip()
+        keyword = self._normalize_metric(keyword).lower().replace('.', '').replace('/', '').strip()
         for sheet_name in self.sheet_info:
             headers = self.sheet_info[sheet_name]['headers']
             pe_columns = []  # Track P/E columns for this sheet
             for col, header in headers.items():
-                if header and keyword in header.lower().replace('.', ''):
-                    if keyword == 'p/e':
-                        pe_columns.append((sheet_name, col, header))
-                    else:
-                        results.append((sheet_name, col, header))
-            # For P/E, select only the earliest column (lowest column index)
+                if header:
+                    # Split header at '>' to isolate main metric
+                    main_metric = header.split(' > ')[0].lower().replace('.', '').replace('/', '').strip() if ' > ' in header else header.lower().replace('.', '').replace('/', '').strip()
+                    if keyword == main_metric:
+                        if keyword == 'pe':
+                            pe_columns.append((sheet_name, col, header))
+                        else:
+                            results.append((sheet_name, col, header))
+            # For P/E, select only the earliest column
             if pe_columns:
                 earliest_pe = min(pe_columns, key=lambda x: openpyxl.utils.column_index_from_string(x[1]))
                 results.append(earliest_pe)
         logging.debug(f"Finding '{keyword}' across sheets: {results}")
         return results
+
 
     def _find_company(self, sheet_name, code):
         """Find a company's data row by its code, case-insensitive."""
@@ -147,8 +187,6 @@ class FinancialQueryProcessor:
         logging.debug(f"Sector '{sector_code}' not found in {sheet_name}")
         return []
     
-    
-
     def _get_all_sectors(self, sheet_name):
         """Get all sector names in a sheet."""
         sectors = self.sheet_info[sheet_name]['sectors']
@@ -157,45 +195,17 @@ class FinancialQueryProcessor:
         return sector_names
 
     def _define_header(self, metric):
-        """Provide a definition for a financial metric."""
-        metric = metric.lower().replace('.', '').strip()
-        definitions = {
-            'p/e': 'Price-to-Earnings (P/E) Ratio: Measures the price of a stock relative to its earnings per share (EPS). A high P/E may suggest overvaluation, while a low P/E may indicate undervaluation.',
-            'cprice': 'Current Price: The current market price of the stock.',
-            'cmp': 'Current Market Price: Same as Current Price.',
-            'div yield': 'Dividend Yield: The annual dividend payment as a percentage of the stock price.',
-            'pbv': 'Price-to-Book (PBV) Ratio: Compares a company’s market value to its book value (net assets).',
-            'roe': 'Return on Equity (ROE): Measures profitability by dividing net income by shareholders’ equity.',
-            'eps': 'Earnings Per Share (EPS): Net profit divided by the number of outstanding shares.',
-            'nav': 'Net Asset Value: The book value per share, calculated as total equity divided by shares outstanding.',
-            'ttm eps': 'Trailing Twelve Months EPS: EPS over the past 12 months.',
-            'payout ratio': 'Payout Ratio: The proportion of earnings paid out as dividends.',
-            'beta': 'Beta: Measures a stock’s volatility relative to the market (beta = 1 means same volatility as market).',
-            'rsi': 'Relative Strength Index (14D): A momentum indicator; values >70 suggest overbought, <30 suggest oversold.',
-            'ytd gain': 'Year-to-Date Gain: Percentage change in stock price since the start of the year.',
-            '52w high': '52-Week High: Highest stock price over the past 52 weeks.',
-            '52w low': '52-Week Low: Lowest stock price over the past 52 weeks.',
-            'revenue 3m': 'Revenue (3 Months): Quarterly revenue for the specified period.',
-            'profit 3m': 'Profit (3 Months): Quarterly profit for the specified period.',
-            'cumulative revenue': 'Cumulative revenue over the fiscal year.',
-            'cumulative profit': 'Cumulative profit over the fiscal year.',
-            'issued qty mn': 'Issued Quantity (Million): Total number of shares issued in millions.',
-            'foreign qty': 'Foreign Quantity: Shares held by foreign investors.',
-            'assets bn': 'Assets (Billion): Total assets in billions.',
-            'equity bn': 'Equity (Billion): Total shareholders’ equity in billions.',
-            'dividend cash': 'Dividend (Cash): Cash dividend per share.',
-            'dividend scrip': 'Dividend (Scrip): Dividend paid in additional shares.',
-            'total dividend': 'Total Dividend: Sum of cash and scrip dividends.'
-        }
-        for key, definition in definitions.items():
-            if metric in key:
-                return definition, None
-        matches = self._find_column_across_sheets(metric)
+        """Provide a definition for a financial metric using metric_definitions."""
+        metric = metric_mappings.get(metric.lower().replace('.', '').strip(), metric.lower().replace('.', '').strip())
+        definition = metric_definitions.get(metric, None)
+        if definition:
+            return definition, None
+        matches = self._find_column_across_sheets(metric.lower())
         if matches:
             sheets = set(sheet_name for sheet_name, _, _ in matches)
             return f"'{metric}' is a financial metric found in sheets {', '.join(sorted(sheets))}. No detailed definition available.", None
         logging.debug(f"No definition found for '{metric}'")
-        return f"Sorry, I don’t have a definition for '{metric}'. Try metrics like 'P/E', 'Div Yield', or 'ROE'.", None
+        return f"Sorry, I don’t have a definition for '{metric}'. Try metrics like 'P/E', 'Div Yield', or 'Revenue 3M'.", None
 
     def _handle_company_multi_metric(self, code, metrics):
         """Retrieve multiple metrics for a company across sheets."""
@@ -410,20 +420,47 @@ class FinancialQueryProcessor:
         logging.debug(f"Best metric value result: {result}")
         return result, chart_data
 
-    def _compare_stocks(self, stocks):
-        """Compare a list of stocks by multiple metrics."""
+    def _compare_stocks(self, stocks, metric='P/E'):
+        """Compare a list of stocks by a specific metric."""
         sheet_name = detect_multirow_sheet(self.wb)
-        metrics = ['P/E', 'Div Yield', 'PBV', 'ROE']
+        columns = [col for sheet, col, header in self._find_column_across_sheets(metric) if sheet == sheet_name and '%' not in header]
+        if not columns:
+            return f"Metric '{metric}' not found in {sheet_name}.", None
         results = []
         chart_data = []
         for code in [s.upper().strip() for s in stocks]:
-            result, chart = self._handle_company_multi_metric(code, metrics)
-            results.append(f"{code}:\n{result}")
-            if chart:
-                chart_data.append(chart)
+            row = self._find_company(sheet_name, code)
+            if not row:
+                results.append(f"{code}: Company not found in {sheet_name}.")
+                continue
+            sheet = self.sheet_info[sheet_name]['sheet']
+            value = None
+            for col in columns:
+                val = sheet.cell(row=row, column=openpyxl.utils.column_index_from_string(col)).value
+                if isinstance(val, (int, float)):
+                    value = val
+                    break
+            if value is not None:
+                results.append(f"{code}: {metric} = {value:.2f}")
+                chart_data.append((code, value))
+            else:
+                results.append(f"{code}: No valid {metric} data in {sheet_name}.")
+        if not chart_data:
+            return f"No valid data found for {metric} across specified stocks.", None
+        # Generate comparison chart
+        labels, values = zip(*chart_data)
+        fig = go.Figure(data=[
+            go.Bar(x=labels, y=values, marker_color='#36A2EB', name=metric)
+        ])
+        fig.update_layout(
+            title=f'Comparison of {metric} Across Stocks',
+            xaxis_title='Stock',
+            yaxis_title=metric,
+            template='plotly_white'
+        )
         final_result = "Comparison of stocks:\n" + "\n".join(results)
         logging.debug(f"Stock comparison result: {final_result}")
-        return final_result, chart_data
+        return final_result, fig
 
     def _handle_multi_sheet_query(self, code, metric_sheet_pairs):
         """Handle queries specifying metrics from specific sheets."""
@@ -442,7 +479,7 @@ class FinancialQueryProcessor:
                 row = row_cache[sheet_name]
                 if not row:
                     results.append(f"Company {code} not found in {sheet_name} for metric '{metric}'.")
-                    continue
+                continue
                 sheet = self.sheet_info[sheet_name]['sheet']
                 value = sheet.cell(row=row, column=openpyxl.utils.column_index_from_string(col)).value
                 display_header = header.split(' > ')[-1] if ' > ' in header else header
@@ -468,7 +505,11 @@ class FinancialQueryProcessor:
 
         for entity in entities:
             entity_name = entity['name'].upper().strip()
-            if entity['type'] == 'company':
+            entity_type = entity['type']
+            if not self._validate_entity(entity_name, is_company=(entity_type == 'company')):
+                results.append(f"{entity_type.capitalize()} '{entity_name}' not found in {sheet_name}.")
+                continue
+            if entity_type == 'company':
                 row = self._find_company(sheet_name, entity_name)
                 if not row:
                     results.append(f"Company '{entity_name}' not found in {sheet_name}.")
@@ -486,7 +527,7 @@ class FinancialQueryProcessor:
                     values.append(value)
                 else:
                     results.append(f"No valid {metric} data for company {entity_name} in {sheet_name}.")
-            elif entity['type'] == 'sector':
+            elif entity_type == 'sector':
                 rows = self._get_sector_rows(sheet_name, entity_name)
                 if not rows:
                     results.append(f"Sector '{entity_name}' not found in {sheet_name}.")
@@ -522,6 +563,120 @@ class FinancialQueryProcessor:
 
         result = f"Comparison of {metric}:\n" + "\n".join(results)
         logging.debug(f"Mixed entity comparison result: {result}")
+        return result, fig
+
+    # def _compare_mixed_entities(self, entities, metric):
+    #     """Compare companies and sectors by a metric."""
+    #     sheet_name = detect_multirow_sheet(self.wb)
+    #     columns = [col for sheet, col, _ in self._find_column_across_sheets(metric) if sheet == sheet_name]
+    #     if not columns:
+    #         return f"Metric '{metric}' not found in {sheet_name}.", None
+
+    #     results = []
+    #     labels = []
+    #     values = []
+
+    #     for entity in entities:
+    #         entity_name = entity['name'].upper().strip()
+    #         if entity['type'] == 'company':
+    #             row = self._find_company(sheet_name, entity_name)
+    #             if not row:
+    #                 results.append(f"Company '{entity_name}' not found in {sheet_name}.")
+    #                 continue
+    #             sheet = self.sheet_info[sheet_name]['sheet']
+    #             value = None
+    #             for col in columns:
+    #                 val = sheet.cell(row=row, column=openpyxl.utils.column_index_from_string(col)).value
+    #                 if isinstance(val, (int, float)):
+    #                     value = val
+    #                     break
+    #             if value is not None:
+    #                 results.append(f"Company {entity_name}: {metric} = {value:.2f}")
+    #                 labels.append(entity_name)
+    #                 values.append(value)
+    #             else:
+    #                 results.append(f"No valid {metric} data for company {entity_name} in {sheet_name}.")
+    #         elif entity['type'] == 'sector':
+    #             rows = self._get_sector_rows(sheet_name, entity_name)
+    #             if not rows:
+    #                 results.append(f"Sector '{entity_name}' not found in {sheet_name}.")
+    #                 continue
+    #             sheet = self.sheet_info[sheet_name]['sheet']
+    #             sector_values = []
+    #             for row in rows:
+    #                 for col in columns:
+    #                     val = sheet.cell(row=row, column=openpyxl.utils.column_index_from_string(col)).value
+    #                     if isinstance(val, (int, float)):
+    #                         sector_values.append(val)
+    #             if sector_values:
+    #                 avg_value = sum(sector_values) / len(sector_values)
+    #                 results.append(f"Sector {entity_name}: Average {metric} = {avg_value:.2f}")
+    #                 labels.append(f"{entity_name} (Sector Avg)")
+    #                 values.append(avg_value)
+    #             else:
+    #                 results.append(f"No valid {metric} data for sector {entity_name} in {sheet_name}.")
+
+    #     if not results or not values:
+    #         return f"No valid data found for {metric} across specified entities.", None
+
+    #     # Generate comparison chart
+    #     fig = go.Figure(data=[
+    #         go.Bar(x=labels, y=values, marker_color='#36A2EB', name=metric)
+    #     ])
+    #     fig.update_layout(
+    #         title=f'Comparison of {metric} Across Entities',
+    #         xaxis_title='Entity',
+    #         yaxis_title=metric,
+    #         template='plotly_white'
+    #     )
+
+    #     result = f"Comparison of {metric}:\n" + "\n".join(results)
+    #     logging.debug(f"Mixed entity comparison result: {result}")
+    #     return result, fig
+
+    def _handle_range_query(self, display_metric, filter_metric, min_value, max_value):
+        """Handle queries for companies within a metric range."""
+        sheet_name = detect_multirow_sheet(self.wb)
+        display_columns = [col for sheet, col, _ in self._find_column_across_sheets(display_metric) if sheet == sheet_name]
+        filter_columns = [col for sheet, col, _ in self._find_column_across_sheets(filter_metric) if sheet == sheet_name]
+        if not display_columns or not filter_columns:
+            return f"One or both metrics ('{display_metric}', '{filter_metric}') not found in {sheet_name}.", None
+
+        sheet = self.sheet_info[sheet_name]['sheet']
+        primary_key_col = self.sheet_info[sheet_name]['primary_key_col']
+        col_idx = openpyxl.utils.column_index_from_string(primary_key_col) - 1
+        data_rows = self.sheet_info[sheet_name]['data_rows']
+        results = []
+        chart_data = []
+
+        for row in data_rows:
+            code = sheet.cell(row=row, column=col_idx + 1).value
+            if not code or not self._validate_entity(code.upper().strip(), is_company=True):
+                continue
+            filter_value = None
+            for col in filter_columns:
+                val = sheet.cell(row=row, column=openpyxl.utils.column_index_from_string(col)).value
+                if isinstance(val, (int, float)):
+                    filter_value = val
+                    break
+            if filter_value is None or not (min_value <= filter_value <= max_value):
+                continue
+            display_value = None
+            for col in display_columns:
+                val = sheet.cell(row=row, column=openpyxl.utils.column_index_from_string(col)).value
+                if isinstance(val, (int, float)):
+                    display_value = val
+                    break
+            if display_value is not None:
+                results.append(f"{code}: {display_metric} = {display_value:.2f}")
+                chart_data.append((code, display_value))
+
+        if not results:
+            return f"No companies found with {filter_metric} between {min_value} and {max_value} in {sheet_name}.", None
+
+        result = f"Companies with {filter_metric} between {min_value} and {max_value}:\n" + "\n".join(results)
+        fig = self._generate_company_chart(chart_data, display_metric)
+        logging.debug(f"Range query result: {result}")
         return result, fig
 
     def _generate_company_chart(self, code, metrics):
@@ -682,7 +837,8 @@ class FinancialQueryProcessor:
             invalid_stocks = [s for s in stocks if not self._validate_entity(s, is_company=True)]
             if invalid_stocks:
                 return f"Companies {', '.join(invalid_stocks)} not found.", None
-            return self._compare_stocks(stocks)
+            metric = query_dict.get('metric', 'P/E')
+            return self._compare_stocks(stocks, metric=metric)
         elif query_type == 'multi_sheet':
             company = query_dict.get('company', '').upper().strip()
             if not self._validate_entity(company, is_company=True):
@@ -700,7 +856,8 @@ class FinancialQueryProcessor:
                     invalid_entities.append(entity_name)
             if invalid_entities:
                 return f"Entities {', '.join(invalid_entities)} not found.", None
-            return self._compare_mixed_entities(entities, query_dict.get('metric', ''))
+            metric = query_dict.get('metric', 'P/E')
+            return self._compare_mixed_entities(entities, metric)
         return "Invalid query structure.", None
 
     def process_query(self, query):
@@ -709,98 +866,68 @@ class FinancialQueryProcessor:
         normalized_query = query.lower()
         logging.info(f"Processing query: {query}")
 
-        # Normalize common metric formats
-        metric_mappings = {
-            'p/e': 'P/E',
-            'pe': 'P/E',
-            'div yield': 'Div Yield',
-            'dividend yield': 'Div Yield',
-            'c price': 'C.Price',
-            'current price': 'C.Price',
-            'cmp': 'C.Price',
-            'pbv': 'PBV',
-            'roe': 'ROE',
-            'eps': 'EPS',
-            'nav': 'NAV',
-            'ttm eps': 'TTM EPS',
-            'payout ratio': 'Payout Ratio',
-            'beta': 'Beta',
-            'rsi': 'RSI',
-            'ytd gain': 'YTD Gain',
-            '52w high': '52W High',
-            '52w low': '52W Low',
-            'revenue 3m': 'Revenue 3M',
-            'profit 3m': 'Profit 3M',
-            'cumulative revenue': 'Cumulative Revenue',
-            'cumulative profit': 'Cumulative Profit',
-            'issued qty mn': 'Issued Qty Mn',
-            'foreign qty': 'Foreign Qty',
-            'assets bn': 'Assets Bn',
-            'equity bn': 'Equity Bn',
-            'dividend cash': 'Dividend Cash',
-            'dividend scrip': 'Dividend Scrip',
-            'total dividend': 'Total Dividend'
-        }
-        for key, value in metric_mappings.items():
-            normalized_query = normalized_query.replace(key, value)
-
         # Regex patterns
-        multi_sheet_pattern = r'(.+?)\s+from\s+(\w+\s*\d*)\s+and\s+(.+?)\s+from\s+(\w+\s*\d*)\s+for\s+([a-z0-9\.]+)'
+        multi_sheet_pattern = r'(.+?)\s+from\s+([\w\s\d]+)\s+and\s+(.+?)\s+from\s+([\w\s\d]+)\s+for\s+([a-z0-9\.]+)'
         multi_metric_pattern = r'(.+?)\s+for\s+([a-z0-9]+)'
-        sector_pattern = r'(.+?)\s+for\s+sector\s+([a-z\s&]+)'
+        sector_pattern = r'(.+?)\s+for\s+sector\s+([\w\s,&]+)'
         general_pattern = r'average\s+(.+)'
         define_pattern = r'(?:what is|define)\s+(.+)'
         best_stock_pattern = r'(?:best stock|which stock is best|top stocks?)(?:\s+by\s+(.+))?'
         best_sector_pattern = r'(?:best sector|which sector is best|top sectors?)(?:\s+by\s+(.+))?'
-        best_metric_pattern = r'(?:best|lowest|highest)\s+([a-z0-9\.]+)'
+        best_metric_pattern = r'(?:best|lowest|highest)\s+([a-z0-9\.\/]+)'
         compare_stocks_pattern = r'(?:which stocks are best|compare stocks)\s+((?:[a-z0-9]+(?:\s*,\s*[a-z0-9]+)*))\s*(?:by\s+(.+))?'
-        compare_mixed_pattern = r'((?:[a-z0-9]+|sector\s+[a-z\s&]+)(?:\s*,\s*(?:[a-z0-9]+|sector\s+[a-z\s&]+))*)\s+vs\s+((?:[a-z0-9]+|sector\s+[a-z\s&]+))\s+by\s+(.+)'
+        compare_mixed_pattern = r'([a-z0-9]+)\s+vs\s+([a-z0-9]+)\s+vs\s+sector\s+([\w\s,&]+)\s+by\s+(.+)'
+        compare_sectors_pattern = r'sector\s+([\w\s,&]+)\s+vs\s+sector\s+([\w\s,&]+)\s+by\s+(.+)'
+        range_pattern = r'show\s+(.+?)\s+where\s+(.+?)\s+between\s+([\d\.]+)\s+and\s+([\d\.]+)'
+
+        # Handle range query
+        range_match = re.search(range_pattern, normalized_query)
+        if range_match:
+            display_metric, filter_metric, min_value, max_value = range_match.groups()
+            display_metric = self._normalize_metric(display_metric.strip())
+            filter_metric = self._normalize_metric(filter_metric.strip())
+            try:
+                min_value, max_value = float(min_value), float(max_value)
+                return self._handle_range_query(display_metric, filter_metric, min_value, max_value)
+            except ValueError:
+                return "Error: Invalid range values. Please enter numeric values.", None
+
+        # Handle compare_sectors query
+        compare_sectors_match = re.search(compare_sectors_pattern, normalized_query)
+        if compare_sectors_match:
+            sector1, sector2, metric = compare_sectors_match.groups()
+            entities = [
+                {'name': sector1.upper().strip(), 'type': 'sector'},
+                {'name': sector2.upper().strip(), 'type': 'sector'}
+            ]
+            invalid_entities = []
+            for entity in entities:
+                if not self._validate_entity(entity['name'], is_company=False):
+                    invalid_entities.append(entity['name'])
+            if invalid_entities:
+                return f"Sectors {', '.join(invalid_entities)} not found.", None
+            metric = self._normalize_metric(metric.strip())
+            return self._compare_mixed_entities(entities, metric)
 
         # Handle compare_mixed query
         compare_mixed_match = re.search(compare_mixed_pattern, normalized_query)
         if compare_mixed_match:
-            entities_str1, entity2, metric = compare_mixed_match.groups()
-            # Combine entities from both groups (before and after 'vs')
-            entities_str = f"{entities_str1}, {entity2}"
-            entities = []
-            for entity in re.split(r'\s*,\s*', entities_str.strip()):
-                entity = entity.strip()
-                entity_type = 'company'
-                entity_name = entity
-                if 'sector' in entity.lower():
-                    entity_name = entity.lower().replace('sector', '').strip()
-                    entity_type = 'sector'
-                entity_upper = entity_name.upper()
-                if self._validate_entity(entity_upper, is_company=(entity_type == 'company')):
-                    entities.append({'name': entity_upper, 'type': entity_type})
-                else:
-                    return f"Entity '{entity_name}' not found as a {'company' if entity_type == 'company' else 'sector'}.", None
-            metric = metric_mappings.get(metric.strip(), metric.strip())
-            if not entities:
-                return "No valid entities provided for comparison.", None
-            return self._compare_mixed_entities(entities, metric)        
+            stock1, stock2, sector, metric = compare_mixed_match.groups()
+            entities = [
+                {'name': stock1.upper().strip(), 'type': 'company'},
+                {'name': stock2.upper().strip(), 'type': 'company'},
+                {'name': sector.upper().strip(), 'type': 'sector'}
+            ]
+            invalid_entities = []
+            for entity in entities:
+                if not self._validate_entity(entity['name'], is_company=(entity['type'] == 'company')):
+                    invalid_entities.append(entity['name'])
+            if invalid_entities:
+                return f"Entities {', '.join(invalid_entities)} not found.", None
+            metric = self._normalize_metric(metric.strip())
+            return self._compare_mixed_entities(entities, metric)
 
-        # Handle other query types
-        define_match = re.search(define_pattern, normalized_query)
-        if define_match:
-            metric = metric_mappings.get(define_match.group(1).strip(), define_match.group(1).strip())
-            return self._define_header(metric)
-
-        best_stock_match = re.search(best_stock_pattern, normalized_query)
-        if best_stock_match:
-            criteria = metric_mappings.get(best_stock_match.group(1).strip(), best_stock_match.group(1).strip()) if best_stock_match.group(1) else None
-            return self._find_best_stock(criteria)
-
-        best_sector_match = re.search(best_sector_pattern, normalized_query)
-        if best_sector_match:
-            criteria = metric_mappings.get(best_sector_match.group(1).strip(), best_sector_match.group(1).strip()) if best_sector_match.group(1) else None
-            return self._find_best_sector(criteria)
-
-        best_metric_match = re.search(best_metric_pattern, normalized_query)
-        if best_metric_match:
-            metric = metric_mappings.get(best_metric_match.group(1).strip(), best_metric_match.group(1).strip())
-            return self._find_best_metric_value(metric)
-
+        # Handle compare_stocks query
         compare_stocks_match = re.search(compare_stocks_pattern, normalized_query)
         if compare_stocks_match:
             stocks_str, metric = compare_stocks_match.groups()
@@ -808,47 +935,74 @@ class FinancialQueryProcessor:
             invalid_stocks = [s for s in stocks if not self._validate_entity(s, is_company=True)]
             if invalid_stocks:
                 return f"Companies {', '.join(invalid_stocks)} not found.", None
-            metric = metric_mappings.get(metric.strip() if metric else 'P/E', metric.strip() if metric else 'P/E')
+            metric = self._normalize_metric(metric.strip() if metric else 'P/E')
             return self._compare_stocks(stocks, metric=metric)
 
-        multi_sheet_match = re.search(multi_sheet_pattern, normalized_query)
-        if multi_sheet_match:
-            metric1, sheet1, metric2, sheet2, code = multi_sheet_match.groups()
-            metric1 = metric_mappings.get(metric1.strip(), metric1.strip())
-            metric2 = metric_mappings.get(metric2.strip(), metric2.strip())
-            if not self._validate_entity(code, is_company=True):
-                return f"Company '{code}' not found in any sheet.", None
-            return self._handle_multi_sheet_query(code, [(metric1, sheet1), (metric2, sheet2)])
-
-        if ' and ' in normalized_query and ' for ' in normalized_query:
-            match = re.search(multi_metric_pattern, normalized_query)
-            if match:
-                metrics_str, code = match.groups()
-                metrics = [metric_mappings.get(m.strip(), m.strip()) for m in metrics_str.split(' and ')]
-                if not self._validate_entity(code, is_company=True):
-                    return f"Company '{code}' not found in any sheet.", None
-                return self._handle_company_multi_metric(code, metrics)
-
+        # Handle sector query
         sector_match = re.search(sector_pattern, normalized_query)
         if sector_match:
             metric, sector = sector_match.groups()
-            metric = metric_mappings.get(metric.strip(), metric.strip())
+            metric = self._normalize_metric(metric.strip())
+            sector = sector.upper().strip()
             if not self._validate_entity(sector, is_company=False):
                 return f"Sector '{sector}' not found in any sheet.", None
             return self._handle_sector_metric(sector, metric)
 
+        # Handle multi-sheet query
+        multi_sheet_match = re.search(multi_sheet_pattern, normalized_query)
+        if multi_sheet_match:
+            metric1, sheet1, metric2, sheet2, code = multi_sheet_match.groups()
+            metric1 = self._normalize_metric(metric1.strip())
+            metric2 = self._normalize_metric(metric2.strip())
+            if not self._validate_entity(code, is_company=True):
+                return f"Company '{code}' not found in any sheet.", None
+            return self._handle_multi_sheet_query(code, [(metric1, sheet1), (metric2, sheet2)])
+
+        # Handle multi-metric query (before single metric)
+        if ' and ' in normalized_query and ' for ' in normalized_query:
+            match = re.search(multi_metric_pattern, normalized_query)
+            if match:
+                metrics_str, code = match.groups()
+                metrics = [self._normalize_metric(m.strip()) for m in metrics_str.split(' and ')]
+                if not self._validate_entity(code, is_company=True):
+                    return f"Company '{code}' not found in any sheet.", None
+                return self._handle_company_multi_metric(code, metrics)
+
+        # Handle single-metric query
         metric_match = re.search(multi_metric_pattern, normalized_query)
         if metric_match:
             metric, code = metric_match.groups()
-            metric = metric_mappings.get(metric.strip(), metric.strip())
+            metric = self._normalize_metric(metric.strip())
             if not self._validate_entity(code, is_company=True):
                 return f"Company '{code}' not found in any sheet.", None
             return self._handle_company_multi_metric(code, [metric])
 
+        # Handle other query types
+        define_match = re.search(define_pattern, normalized_query)
+        if define_match:
+            metric = self._normalize_metric(define_match.group(1).strip())
+            return self._define_header(metric)
+
+        best_stock_match = re.search(best_stock_pattern, normalized_query)
+        if best_stock_match:
+            criteria = self._normalize_metric(best_stock_match.group(1).strip()) if best_stock_match.group(1) else None
+            return self._find_best_stock(criteria)
+
+        best_sector_match = re.search(best_sector_pattern, normalized_query)
+        if best_sector_match:
+            criteria = self._normalize_metric(best_stock_match.group(1).strip()) if best_sector_match.group(1) else None
+            return self._find_best_sector(criteria)
+
+        best_metric_match = re.search(best_metric_pattern, normalized_query)
+        if best_metric_match:
+            metric = self._normalize_metric(best_metric_match.group(1).strip())
+            return self._find_best_metric_value(metric)
+
         general_match = re.search(general_pattern, normalized_query)
         if general_match:
-            metric = metric_mappings.get(general_match.group(1).strip(), general_match.group(1).strip())
+            metric = self._normalize_metric(general_match.group(1).strip())
             return self._handle_general_metric(metric)
 
         logging.debug("Query not understood")
-        return "Sorry, I couldn't understand your query. Try 'P/E for ALLI', 'P/E for sector BANKS', 'average P/E', 'what is P/E', 'best stock by P/E', 'best sector by P/E', or 'ALLI vs BOC vs sector BANKS by P/E'.", None
+        return "Sorry, I couldn't understand your query. Try 'P/E for ALLI', 'P/E for sector FOOD, BEVERAGE & TOBACCO', 'average P/E', 'what is P/E', 'best stock by P/E', 'best sector by P/E', or 'ALLI vs BOC vs sector BANKS by Revenue 3M'.", None
+        

@@ -1,4 +1,4 @@
-# 📊 Financial Metric Query App
+# 📊 Financial Metric Query App and LLM
 
 An intelligent, extensible financial analytics tool built using **Python**, **Streamlit**, and **LangChain**. This app allows users to upload Excel spreadsheets and query financial data using natural or structured language — extracting metrics for companies and sectors, comparing performance, and generating visual insights.
 

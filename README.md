@@ -70,7 +70,7 @@ The app integrates with Mistral’s Mixtral-8x7B-Instruct using LangChain:
 ---
 
 ## 📦 Key Components & Functions
-
+```
 app.py
 	•	Loads and parses uploaded Excel files
 	•	Handles query input, routing, and fallback logic
@@ -99,7 +99,7 @@ metric_dictionary.py
 	•	metric_mappings
 	•	metric_definitions
 	•	metric_ranges
-
+```
 ---
 
 ## 🚀 Getting Started

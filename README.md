@@ -62,10 +62,12 @@ Best sector by ROE
 
 ## 🧠 AI Integration
 
+```
 The app integrates with Mistral’s Mixtral-8x7B-Instruct using LangChain:
 	•	Queries first parsed locally by query_processor.py
 	•	If unrecognized or malformed, passed to Mistral via HuggingFaceEndpoint
 	•	Ensures robust handling of edge-case queries
+```
 
 ---
 
@@ -103,7 +105,7 @@ metric_dictionary.py
 ---
 
 ## 🚀 Getting Started
-
+```
 ✅ Prerequisites
 	•	Python 3.8+
 	•	API access to Mistral via Hugging Face (if fallback is enabled)
@@ -116,7 +118,7 @@ metric_dictionary.py
 	•	Filter by Metric Ranges – e.g. Show ROE where P/E between 10 and 20
 	•	Best/Top Metrics – e.g. Best sector by Revenue 3M
 	•	Definitions – e.g. Define Market Cap
-
+```
 
 ---
 

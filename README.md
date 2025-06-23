@@ -47,14 +47,14 @@ Best sector by ROE
 ## ⚙️ Tech Stack
 
 
-| Component | Description |
-| ------------- | ------------- |
-| Python 3.x | Core language  |
-| Streamlit  | Frontend UI |
-| OpenPyXL  | Excel file parsing |
-| Plotly  | Data visualization |
-|LangChain  | LLM orchestration |
-| Mistral AI  | AI fallback for complex queries |
+| Component     | Description                     |
+| ------------- | ------------------------------- |
+| Python 3.x    | Core language      		  |
+| Streamlit  	| Frontend UI        		  |
+| OpenPyXL   	| Excel file parsing 		  |
+| Plotly     	| Data visualization 		  |
+|LangChain   	| LLM orchestration            	  |
+| Mistral AI 	| AI fallback for complex queries |
 
 ---
 

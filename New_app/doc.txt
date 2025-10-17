@@ -1,0 +1,3 @@
+Made on 17/10/2025
+
+Updated and finalized query functions for pilot stage
